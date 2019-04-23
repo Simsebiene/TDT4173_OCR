@@ -1,0 +1,128 @@
+from PIL import Image
+from sklearn.model_selection import train_test_split
+import numpy as np
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn import svm
+import os
+
+def createFileList(myDir, format='.jpg'):
+    fileList = []
+    #print(myDir)
+    for root, dirs, files in os.walk(myDir, topdown=False):
+       for name in files:
+           if name.endswith(format):
+               fullName = os.path.join(root, name)
+               fileList.append(fullName)
+    return fileList
+
+def correct_class(y_p, y_t):
+    right = 0;
+    for i in range(len(y_t)):
+        if y_t[i] == y_p[i]:
+            right += 1
+    con = confusion_matrix(y_t, y_p)
+    return right/len(y_t), con
+
+def plot_confusion_matrix(y_true, y_pred, classes, cm, normalize=False, title=None, cmap=plt.cm.Blues):
+    fig, ax = plt.subplots()
+    im = ax.imshow(cm, interpolation='nearest', cmap=cmap)
+    ax.figure.colorbar(im, ax=ax)
+    ax.set(xticks=np.arange(cm.shape[1]),
+           yticks=np.arange(cm.shape[0]),
+           xticklabels=classes, yticklabels=classes,
+           title=title,
+           ylabel='True label',
+           xlabel='Predicted label')
+
+
+'''defines lists'''
+FileList_complete = []
+FileList_flattened = []
+label =[]
+label_flattened = []
+alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
+data_list = []
+
+''' creates to lists: first list includes all files to the images
+ and the second list includes the correct labels'''
+for letter in range(len(alphabet)):
+    myFileList = createFileList('chars74k-lite/'+ alphabet[letter])
+    label.append([letter]*len(myFileList))
+    FileList_complete.append(myFileList)
+
+'''flatten the lists'''
+for x in label:
+    for y in x:
+        label_flattened.append(y)
+for x in FileList_complete:
+    for y in x:
+        FileList_flattened.append(y)
+
+'''' reads the image, convert it into black/ white, convert it from jpg to csv and add it to data_list'''
+for file in FileList_flattened:
+    img_file = Image.open(file)
+    #img_bw = img_file.convert('1') #convert to black/white
+    #value = np.asarray(img_bw.getdata(), dtype=np.int).reshape((img_bw.size[1], img_bw.size[0]))
+    value = np.asarray(img_file.getdata(), dtype=np.int).reshape((img_file.size[1], img_file.size[0]))
+    data_list.append(value.flatten())
+
+
+'''creates training and test sets '''
+X_train, X_test, y_train, y_test = train_test_split(data_list, label_flattened, test_size=0.20)
+
+
+# k-NN
+n_nei = 8
+neigh = KNeighborsClassifier(n_neighbors=n_nei)
+neigh.fit(X_train, y_train)
+kNN_y_pred = neigh.predict(X_test)
+
+kNN_right, kNN_con = correct_class(kNN_y_pred, y_test)
+print ('kNN')
+print('correct classified: ' + str(kNN_right))
+#print('confusion matrix: \n' + str(kNN_con))
+plot_confusion_matrix(y_test, kNN_y_pred, classes=alphabet, cm=kNN_con, title='Confusion matrix, kNN')
+plt.show()
+
+
+# SVM
+clf_svm = svm.SVC(gamma='scale')
+clf_svm.fit(X_train, y_train)
+SVM_y_pred = np.around(clf_svm.predict(X_test))
+
+SVM_right, SVM_con = correct_class(SVM_y_pred,y_test)
+print ('SVM')
+print('correct classified: ' + str(SVM_right))
+#print('confusion matrix: \n' + str(SVM_con))
+plot_confusion_matrix(y_test, SVM_y_pred, classes=alphabet, cm=SVM_con, title='Confusion matrix, SVM')
+plt.show()
+
+
+#RandomForest with AdaBoost
+clf_rft = AdaBoostClassifier(RandomForestClassifier(n_estimators=200, max_depth=4))
+clf_rft.fit(X_train, y_train)
+rft_y_pred = clf_rft.predict(X_test)
+
+rft_right, rft_con = correct_class(rft_y_pred,y_test)
+print ('Random Forest')
+print('correct classified: ' + str(rft_right))
+#print('confusion matrix: \n' + str(rft_con))
+plot_confusion_matrix(y_test, rft_y_pred, classes=alphabet, cm=rft_con, title='Confusion matrix, Random Forest Tree')
+plt.show()
+
+
+# decision tree with AdaBoost
+dtc = AdaBoostClassifier(DecisionTreeClassifier(max_depth=4), algorithm="SAMME", n_estimators=200)
+dtc.fit(X_train, y_train)
+dtc_y_pred = dtc.predict(X_test)
+
+dtc_right, dtc_con = correct_class(dtc_y_pred, y_test)
+print ('Decision Tree with AdaBoost')
+print('correct classified: ' + str(dtc_right))
+plot_confusion_matrix(y_test, dtc_y_pred, classes=alphabet, cm=dtc_con, title='Confusion matrix, Decision Tree with AdaBoost')
+plt.show()
